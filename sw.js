@@ -1,7 +1,7 @@
 /* Tayyibat System PWA service worker.
-   Versioned app shell; HTML is network-first so a deployment is not trapped behind stale UI.
-   User records live in localStorage and are never touched by cache cleanup. */
-const CACHE_VERSION = "tayyibat-system-v2.0.1";
+   Uses the deployment directory as its base, tolerates missing optional shell assets,
+   and never clears localStorage or previous browser caches. */
+const CACHE_VERSION = "tayyibat-system-v2.0.2";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -11,19 +11,23 @@ const APP_SHELL = [
   "./icons/icon-512.png",
   "./icons/icon-512-maskable.png"
 ];
-const CACHE_PREFIX = "tayyibat-";
+const appURL = path => new URL(path, self.registration.scope).href;
+const indexURL = appURL("./index.html");
 
 self.addEventListener("install", event => {
-  event.waitUntil(caches.open(CACHE_VERSION).then(cache => cache.addAll(APP_SHELL)));
-  self.skipWaiting();
+  event.waitUntil((async () => {
+    const cache = await caches.open(CACHE_VERSION);
+    const results = await Promise.allSettled(APP_SHELL.map(path => cache.add(appURL(path))));
+    const failures = results.map((result, index) => result.status === "rejected" ? APP_SHELL[index] : null).filter(Boolean);
+    if (failures.length) console.warn("Tayyibat offline cache skipped unavailable app-shell files:", failures);
+    await self.skipWaiting();
+  })());
 });
 
 self.addEventListener("activate", event => {
-  event.waitUntil((async () => {
-    const keys = await caches.keys();
-    await Promise.all(keys.filter(key => key.startsWith(CACHE_PREFIX) && key !== CACHE_VERSION).map(key => caches.delete(key)));
-    await self.clients.claim();
-  })());
+  // Keep older browser caches intact; a new worker reads only CACHE_VERSION.
+  // This avoids deleting site data/cache automatically while still claiming the page.
+  event.waitUntil(self.clients.claim());
 });
 
 self.addEventListener("fetch", event => {
@@ -35,20 +39,21 @@ self.addEventListener("fetch", event => {
     if (isNavigation) {
       try {
         const response = await fetch(request);
-        if (response && response.ok) cache.put(request, response.clone());
+        if (response && response.ok) cache.put(request, response.clone()).catch(() => {});
         return response;
       } catch (_) {
-        return (await cache.match(request)) || (await cache.match("./index.html")) || Response.error();
+        return (await cache.match(request)) || (await cache.match(indexURL)) || Response.error();
       }
     }
+
     const cached = await cache.match(request);
     if (cached) return cached;
     try {
       const response = await fetch(request);
-      if (response && response.ok && response.type === "basic") cache.put(request, response.clone());
+      if (response && response.ok && response.type === "basic") cache.put(request, response.clone()).catch(() => {});
       return response;
     } catch (_) {
-      return (await cache.match("./index.html")) || Response.error();
+      return (await cache.match(request)) || Response.error();
     }
   })());
 });

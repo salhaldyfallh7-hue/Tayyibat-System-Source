@@ -513,6 +513,7 @@
   .system-progress{height:9px;background:#202b41;border-radius:20px;overflow:hidden;margin:13px 0 5px}.system-progress i{display:block;height:100%;width:0;background:linear-gradient(90deg,#60a5fa,#a78bfa,#fbbf24);border-radius:inherit;transition:width .55s ease}
   .system-progress-caption{display:flex;justify-content:space-between;font-size:10px;color:var(--text-dim);gap:8px}
   .system-controls{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-top:16px}.system-controls select{background:var(--card-2);color:var(--text);border:1px solid var(--border);padding:10px 12px;border-radius:11px;font:inherit;font-size:12px;min-height:42px}.system-btn{background:linear-gradient(120deg,#2563eb,#6d5be8);color:white;padding:11px 15px;border-radius:11px;font-weight:800;font-size:12px;box-shadow:0 5px 16px rgba(59,130,246,.2)}.system-btn:active{transform:scale(.97)}.system-note{font-size:11px;color:#9aabc5;line-height:1.7;margin:11px 0 0}
+  .install-panel{margin-top:12px}.install-btn{width:100%;min-height:46px;border:1px solid rgba(251,191,36,.42);background:linear-gradient(110deg,#1d4ed8,#6653d9 62%,#8b5cf6);font-size:13px;letter-spacing:.1px;box-shadow:0 7px 20px rgba(79,70,229,.22)}.install-btn:focus-visible{outline:3px solid #fbbf24;outline-offset:3px}.install-status{margin:8px 0 0;padding:10px 12px;border:1px solid rgba(96,165,250,.25);border-radius:11px;background:rgba(37,99,235,.09);color:var(--text-dim);font-size:12px;line-height:1.8}.install-status[hidden]{display:none}.install-status.installed{border-color:rgba(52,211,153,.35);background:rgba(16,185,129,.09);color:#a7f3d0}
   .adaptive-banner{border:1px solid rgba(167,139,250,.25);background:rgba(99,102,241,.08);border-radius:13px;padding:12px;margin-top:14px;font-size:12px;line-height:1.7}.adaptive-banner b{color:#c4b5fd}
   .system-section-title{display:flex;justify-content:space-between;gap:10px;align-items:center}.system-section-title h2{margin-bottom:10px}.system-tag{border:1px solid var(--border);border-radius:999px;padding:4px 9px;font-size:10px;color:#a5b4fc;white-space:nowrap}
   .report-points{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin:12px 0}.report-points div{background:var(--card-2);border-radius:10px;text-align:center;padding:9px 4px}.report-points b{display:block;font-size:16px;color:#dbeafe}.report-points span{font-size:9px;color:var(--text-dim)}
@@ -581,6 +582,10 @@
       <select id="availableTime" aria-label="الوقت المتاح للتحديات"><option value="30">30 دقيقة</option><option value="60" selected>60 دقيقة</option><option value="90">90 دقيقة</option><option value="120">120 دقيقة</option></select>
       <button class="system-btn" id="generateQuestsBtn">✦ جهّز مهامًا متوازنة</button>
       <button class="system-btn" id="focusLaunchBtn" type="button">◉ جلسة تركيز</button>
+    </div>
+    <div class="install-panel" id="installPanel">
+      <button class="system-btn install-btn" id="installAppBtn" type="button" aria-describedby="installStatus">📲 تثبيت التطبيق على الهاتف</button>
+      <p class="install-status" id="installStatus" role="status" aria-live="polite" hidden></p>
     </div>
     <p class="system-note">المهام المقترحة اختيارية ويمكن تعديلها أو حذفها. الراحة والنوم لا يسببان عقوبة؛ الرتبة الأسبوعية قابلة للهبوط بينما XP والمستوى الدائم لا ينخفضان.</p>
   </section>
@@ -2870,14 +2875,84 @@
     saveState();
   }
 
-  /* ============ PWA: service worker registration (100% offline after first load) ============ */
-  if("serviceWorker" in navigator){
+  /* ============ PWA install flow: native prompt where supported, clear guidance elsewhere ============ */
+  let deferredInstallPrompt = null;
+  const installButton = $("#installAppBtn");
+  const installStatus = $("#installStatus");
+  const isStandaloneApp = () => window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+  const isAppleMobile = () => /iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  function showInstallStatus(message, installed = false){
+    installStatus.textContent = message;
+    installStatus.hidden = false;
+    installStatus.classList.toggle("installed", installed);
+  }
+  function syncInstallState(){
+    if(isStandaloneApp()){
+      installButton.hidden = true;
+      showInstallStatus("التطبيق مثبت بالفعل على جهازك؛ يمكنك فتحه من الشاشة الرئيسية.", true);
+    }else{
+      installButton.hidden = false;
+      installStatus.classList.remove("installed");
+    }
+  }
+  function showInstallInstructions(){
+    if(isAppleMobile()){
+      showInstallStatus("للتثبيت على iPhone أو iPad: افتح هذا الموقع في Safari، واضغط زر المشاركة، ثم اختر «إضافة إلى الشاشة الرئيسية» واضغط «إضافة». إذا كنت تستخدم متصفحًا آخر، افتح الرابط أولًا في Safari.");
+    }else if(/Android/i.test(navigator.userAgent)){
+      showInstallStatus("إذا لم تظهر نافذة التثبيت: افتح قائمة Chrome ⋮ واختر «تثبيت التطبيق» أو «إضافة إلى الشاشة الرئيسية». يجب فتح الموقع عبر HTTPS.");
+    }else{
+      showInstallStatus("هذا المتصفح لا يتيح نافذة التثبيت الآن. على الهاتف افتح الموقع عبر HTTPS، ثم استخدم قائمة المتصفح «تثبيت التطبيق» أو «إضافة إلى الشاشة الرئيسية». على iPhone استخدم Safari ثم المشاركة ← «إضافة إلى الشاشة الرئيسية».");
+    }
+  }
+  syncInstallState();
+  window.addEventListener("beforeinstallprompt", event=>{
+    event.preventDefault();
+    deferredInstallPrompt = event;
+  });
+  window.addEventListener("appinstalled", ()=>{
+    deferredInstallPrompt = null;
+    installButton.hidden = true;
+    showInstallStatus("تم تثبيت التطبيق على جهازك بنجاح.", true);
+  });
+  installButton.addEventListener("click", async ()=>{
+    if(isStandaloneApp()){
+      syncInstallState();
+      return;
+    }
+    if(!deferredInstallPrompt){
+      showInstallInstructions();
+      return;
+    }
+    const promptEvent = deferredInstallPrompt;
+    deferredInstallPrompt = null;
+    installButton.disabled = true;
+    try{
+      await promptEvent.prompt();
+      const choice = await promptEvent.userChoice;
+      if(choice && choice.outcome === "accepted"){
+        showInstallStatus("وافقت على التثبيت. أكمل أي تأكيد يعرضه المتصفح؛ ستظهر حالة التثبيت عند اكتماله.");
+      }else{
+        showInstallStatus("لم يتم التثبيت هذه المرة. يمكنك المحاولة لاحقًا، أو اختيار «تثبيت التطبيق» من قائمة المتصفح.");
+      }
+    }catch(error){
+      console.warn("Tayyibat install prompt was unavailable:", error);
+      showInstallInstructions();
+    }finally{
+      installButton.disabled = false;
+      syncInstallState();
+    }
+  });
+  window.matchMedia("(display-mode: standalone)").addEventListener?.("change", syncInstallState);
+
+  /* ============ PWA: path-safe service worker registration and resilient app-shell caching ============ */
+  if("serviceWorker" in navigator && window.isSecureContext){
     window.addEventListener("load", ()=>{
-      navigator.serviceWorker.register("sw.js",{updateViaCache:"none"}).then(reg=>reg.update()).catch(()=>{
-        // Registration fails harmlessly when opened via file:// or an unsupported host —
-        // the app still works fully online, it just won't cache for offline use there.
-      });
-    });
+      const appBase = new URL("./", document.baseURI);
+      const workerURL = new URL("sw.js", appBase);
+      navigator.serviceWorker.register(workerURL.href,{scope:appBase.pathname,updateViaCache:"none"})
+        .then(reg=>reg.update().catch(error=>console.warn("Tayyibat worker update check failed:",error)))
+        .catch(error=>console.warn("Tayyibat service worker registration failed:",error));
+    },{once:true});
   }
 
   /* ============ Extra double-tap-zoom guard (belt-and-suspenders alongside CSS touch-action) ============ */

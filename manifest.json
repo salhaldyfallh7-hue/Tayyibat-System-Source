@@ -1,5 +1,5 @@
 {
-  "id": "./index.html",
+  "id": "./",
   "name": "Tayyibat System | طيبات النظام",
   "short_name": "Tayyibat",
   "description": "نظام عربي للمهام والتقدم الشخصي: رتب أسبوعية، خبرة دائمة، تحديات تكيفية، وتركيز متوازن.",
@@ -14,8 +14,8 @@
   "theme_color": "#080d1c",
   "categories": ["productivity", "lifestyle", "health"],
   "icons": [
-    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "icons/icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    { "src": "./icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "./icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "./icons/icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ]
 }
